@@ -1,0 +1,526 @@
+---
+title: "Childhood Lead Exposure and Public Health Outcomes in New York City"
+output: html_document
+date: "2024-12-27"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = FALSE,
+  message = FALSE,
+  warning = FALSE
+)
+```
+### Introduction :
+Lead exposure remains one of the most significant environmental health risks 
+for young children, with even low levels of exposure associated with 
+developmental, neurological, and long-term health complications. Although 
+major public health initiatives have reduced childhood lead poisoning over the 
+past several decades, elevated blood lead levels continue to disproportionately 
+affect certain communities in New York City. Understanding where these 
+disparities exist and how they relate to broader health outcomes can help 
+identify populations that may benefit from targeted public health interventions.
+
+This project analyzes two publicly available New York City health datasets to 
+examine patterns of childhood lead exposure and mortality across neighborhoods 
+and demographic groups. The first dataset, Children Under 6 Years with Elevated 
+Blood Lead Levels (BLL), contains annual information on the prevalence of 
+elevated blood lead levels among children under six years of age, serving as an 
+important indicator of environmental health risk throughout the city. The second 
+dataset, New York City Leading Causes of Death, provides mortality statistics 
+categorized by cause of death, neighborhood, race and ethnicity, sex, and year, 
+allowing for comparisons of health outcomes across different populations.
+
+The analysis investigates geographic and demographic patterns in childhood lead 
+exposure while exploring potential relationships between elevated blood lead 
+levels and broader public health outcomes. Although the datasets do not 
+establish causal relationships, they provide an opportunity to identify trends, 
+disparities, and associations that may warrant further investigation. 
+Particular attention is given to neighborhoods with consistently high rates of 
+childhood lead exposure and whether these communities exhibit distinct mortality 
+patterns compared with other areas of New York City.
+
+The datasets were cleaned and transformed using R to improve consistency and 
+prepare them for analysis. Missing values were addressed where appropriate, 
+variable names were standardized, and relevant fields were reformatted to 
+facilitate merging, visualization, and statistical analysis. Exploratory data 
+analysis was conducted using ggplot2 to produce informative visualizations, 
+including geographic maps, trend analyses, and demographic comparisons. 
+Statistical techniques, including hypothesis testing and regression modeling, 
+were used to evaluate relationships between childhood lead exposure and selected 
+mortality outcomes. Together, these analyses provide a comprehensive view of 
+environmental health disparities and their potential connections to broader 
+public health patterns across New York City.
+
+
+## Limitations
+
+Several limitations should be considered when interpreting these results. The two datasets originate from different reporting systems and were not designed to establish direct causal relationships between childhood lead exposure and mortality outcomes. In addition, neighborhood-level analyses may obscure important variation at smaller geographic scales, and differences in reporting practices or data completeness across years may influence observed trends. Consequently, the results should be interpreted as exploratory analyses that identify potential associations rather than definitive causal conclusions.
+
+
+```{r}
+#data clean
+library(tidyverse)
+library(janitor)
+library(gganimate)
+library(viridis)
+library(sf)
+library(tigris)
+
+
+#read
+data <- read_csv(
+  "Children_Under_6_yrs_with_Elevated_Blood_Lead_Levels__BLL__20241209.csv")
+
+#delete the notes
+data <- data %>% select(-contains("NOTES"))
+
+#replace colnames to simple
+colnames(data) <- c(
+  "geo_type", "geo_area_id", "geo_area_name", "borough_id", "time_period",
+  "NumberBLL_5", "NumberBLL_10", "NumberBLL_15", "Tested",
+  "RateBLL_5", "RateBLL_10", "RateBLL_15"
+)
+#NA check
+data %>% summarise_all(~mean(is.na(.)))
+
+data <- data %>%
+  mutate(across(where(is.numeric), ~replace_na(., 0)))
+
+#create clean data
+write_csv(data, "cleaned_data.csv")
+
+
+```
+## Data Preparation Summary
+The datasets were cleaned and standardized prior to analysis to improve 
+consistency and usability. Descriptive note columns that were not relevant to 
+the analysis were removed, variable names were simplified to improve 
+readability, and missing values were addressed where appropriate. These 
+preprocessing steps produced tidy datasets that were suitable for visualization, 
+statistical analysis, and geographic mapping.
+
+```{r}
+
+# read
+data <- read_csv("cleaned_data.csv")
+#build New York City shape 
+ny_boroughs <- tigris::counties(state = "NY", cb = TRUE) %>%
+  filter(NAME %in% c("Bronx", "Kings", "New York", "Queens", "Richmond")) 
+
+# change names to fit data
+data <- data %>%
+  mutate(geo_area_name = case_when(
+    geo_area_name == "Brooklyn" ~ "Kings",
+    geo_area_name == "Manhattan" ~ "New York",
+    geo_area_name == "Staten Island" ~ "Richmond",
+    TRUE ~ geo_area_name
+  ))
+
+# combine
+map_data <- ny_boroughs %>%
+  left_join(data, by = c("NAME" = "geo_area_name"))
+
+
+map_data
+# map for BLL >=5 Cases
+ggplot(data = map_data) +
+  geom_sf(aes(fill = NumberBLL_5)) +
+  scale_fill_viridis_c(option = "C", name = "BLL >=5 Cases") +
+  theme_minimal() +
+  labs(
+    title = "Children Under 6 with Elevated Blood Lead Levels in NYC",
+    subtitle = "Hotspot Map by Borough",
+    caption = "Data Source: NYC Health"
+  )
+
+# map for BLL >=10 Cases
+ggplot(data = map_data) +
+  geom_sf(aes(fill = NumberBLL_10)) +
+  scale_fill_viridis_c(option = "C", name = "BLL >=10 Cases") +
+  theme_minimal() +
+  labs(
+    title = "Children Under 6 with Elevated Blood Lead Levels in NYC",
+    subtitle = "Hotspot Map by Borough",
+    caption = "Data Source: NYC Health"
+  )
+# map for BLL >=15 Cases
+ggplot(data = map_data) +
+  geom_sf(aes(fill = NumberBLL_15)) +
+  scale_fill_viridis_c(option = "C", name = "BLL >=15 Cases") +
+  theme_minimal() +
+  labs(
+    title = "Children Under 6 with Elevated Blood Lead Levels in NYC",
+    subtitle = "Hotspot Map by Borough",
+    caption = "Data Source: NYC Health"
+  )
+
+
+# map for BLL >=5 Cases(rate)
+ggplot(data = map_data) +
+  geom_sf(aes(fill = RateBLL_5)) +
+  scale_fill_viridis_c(option = "C", name = "BLL >=5 Cases") +
+  theme_minimal() +
+  labs(
+    title = "Children Under 6 with Elevated Blood Lead Levels in NYC（Rate）",
+    subtitle = "Hotspot Map by Borough",
+    caption = "Data Source: NYC Health"
+  )
+
+# map for BLL >=10 (rate)
+ggplot(data = map_data) +
+  geom_sf(aes(fill = RateBLL_10)) +
+  scale_fill_viridis_c(option = "C", name = "BLL >=10 Cases") +
+  theme_minimal() +
+  labs(
+    title = "Children Under 6 with Elevated Blood Lead Levels in NYC（Rate）",
+    subtitle = "Hotspot Map by Borough",
+    caption = "Data Source: NYC Health"
+  )
+# map for BLL >=15(rate)
+ggplot(data = map_data) +
+  geom_sf(aes(fill = RateBLL_15)) +
+  scale_fill_viridis_c(option = "C", name = "BLL >=15 Cases") +
+  theme_minimal() +
+  labs(
+    title = "Children Under 6 with Elevated Blood Lead Levels in NYC（Rate）",
+    subtitle = "Hotspot Map by Borough",
+    caption = "Data Source: NYC Health"
+  )
+
+```
+## Geographic Insights
+The six pictures are Choropleth Maps of the number of children in the five 
+boroughs of New York at different blood lead levels. However, the number cannot 
+fully show which boroughs have more serious blood lead exposure levels. The 
+population of each area must also be taken into account, so the second part is 
+the graphs of the ratio of the number of children. It can be seen that the blood 
+lead problem in the Bronx and Brooklyn is the most serious, and the Queens area, 
+which was originally higher, is not that high on the ratio map.
+
+```{r}
+data_nyc <- data %>%
+  filter(geo_area_name %in% c("Bronx", "Kings", "New York", "Queens", "Richmond"))
+
+
+anim1 <- data_nyc %>%
+  ggplot(aes(x = time_period, y = RateBLL_5, color = geo_area_name, group = geo_area_name)) +
+  geom_line(size = 1) +
+  geom_point(size = 3) +
+  scale_color_brewer(palette = "Set1") +
+  labs(
+    title = "Blood Lead Levels Over Time",
+    subtitle = "BLL >=5 Rate by Borough",
+    x = "Year",
+    y = "Rate of Cases (%)",
+    color = "Borough"
+  ) +
+  theme_minimal() +
+  transition_reveal(time_period)
+
+animate(anim1)
+
+```
+
+```{r}
+anim2 <- data_nyc %>%
+  ggplot(aes(x = time_period, 
+             y = RateBLL_10, 
+             color = geo_area_name, 
+             group = geo_area_name)) +
+  geom_line(size = 1) +
+  geom_point(size = 3) +
+  scale_color_brewer(palette = "Set1") +
+  labs(
+    title = "Blood Lead Levels Over Time",
+    subtitle = "BLL >=10 Rate by Borough",
+    x = "Year",
+    y = "Rate of Cases (%)",
+    color = "Borough"
+  ) +
+  theme_minimal() +
+  transition_reveal(time_period)
+
+animate(anim2)
+
+```
+
+```{r}
+anim3 <- data_nyc %>%
+  ggplot(aes(x = time_period, 
+             y = RateBLL_15, 
+             color = geo_area_name, 
+             group = geo_area_name)) +
+  geom_line(size = 1) +
+  geom_point(size = 3) +
+  scale_color_brewer(palette = "Set1") +
+  labs(
+    title = "Blood Lead Levels Over Time",
+    subtitle = "BLL >=5 Rate by Borough",
+    x = "Year",
+    y = "Rate of Cases (%)",
+    color = "Borough"
+  ) +
+  theme_minimal() +
+  transition_reveal(time_period)
+
+animate(anim3)
+
+```
+
+## Trend Analysis
+from these three figures, children's blood lead levels have dropped 
+significantly from 2006 to 2016. This may be related to the law enacted by 
+New York City in 2004 (Local Law 1 of 2004), which requires landlords to 
+identify and repair lead paint hazards in homes where children under the age 
+of 6 live. Lead paint is one of the main sources of lead exposure, which 
+directly reduces the risk of children being exposed to lead.
+
+# DATASET ONE
+```{r}
+
+library(dplyr)
+library(readr)
+library(stringr)
+library(ggplot2)
+library(kableExtra)
+library(tidyr)
+```
+
+# Data Cleaning
+```{r}
+death_data <- read_csv("New_York_City_Leading_Causes_of_Death_20241210.csv")
+death_clean <- death_data %>%
+  rename(
+    year = Year,
+    cause = `Leading Cause`,
+    sex = Sex,
+    race_ethnicity = `Race Ethnicity`,
+    deaths = Deaths,
+    death_rate_raw = `Death Rate`,
+    death_rate_adjusted = `Age Adjusted Death Rate`
+  )
+
+
+#Handle Missing Values and Data Types
+summary(death_clean)
+
+# Convert columns to appropriate types
+death_clean <- death_clean %>%
+  mutate(
+    deaths = as.numeric(deaths),
+    death_rate_raw = as.numeric(death_rate_raw),
+    death_rate_adjusted = as.numeric(death_rate_adjusted),
+    sex = factor(sex),
+    race_ethnicity = factor(race_ethnicity),
+    cause = factor(cause)
+  )
+
+summary(death_clean)
+
+death_clean <- death_clean %>%
+  filter(!is.na(deaths), !is.na(death_rate_raw), !is.na(death_rate_adjusted))
+nrow(death_clean)
+summary(death_clean)
+
+```
+
+# Exploration
+```{r}
+death_clean %>%
+  group_by(cause) %>%
+  summarize(total_deaths = sum(deaths, na.rm = TRUE), .groups = "drop") %>%
+  arrange(desc(total_deaths)) %>%
+  head(10)
+
+```
+
+# Visualization
+# Time Series Plot for a Specific Cause:
+```{r}
+selected_cause <- "Diseases of Heart (I00-I09, I11, I13, I20-I51)"
+cause_trend <- death_clean %>%
+  filter(cause == selected_cause) %>%
+  group_by(year) %>%
+  summarize(total_deaths = sum(deaths), .groups = "drop")
+
+ggplot(cause_trend, aes(x = year, y = total_deaths)) +
+  geom_line(color="blue", size=1) +
+  labs(
+    title = paste("Trend of", selected_cause, "over time"),
+    x = "Year",
+    y = "Total Deaths"
+  ) +
+  theme_minimal()
+
+
+```
+
+# Bar Plot by Race/Ethnicity:
+```{r}
+latest_year <- max(death_clean$year)
+race_data <- death_clean %>%
+  filter(cause == selected_cause, year == latest_year) %>%
+  group_by(race_ethnicity) %>%
+  summarize(total_deaths = sum(deaths), .groups = "drop")
+
+ggplot(race_data, aes(x = reorder(race_ethnicity, -total_deaths), y = total_deaths)) +
+  geom_col(fill = "steelblue") +
+  coord_flip() +
+  labs(
+    title = paste("Deaths from", selected_cause, "by Race/Ethnicity in", latest_year),
+    x = "Race/Ethnicity",
+    y = "Number of Deaths"
+  ) +
+  theme_minimal()
+
+```
+```{r}
+#Statistical Overview and Visual Distribution of BLL Cases (>=5, >=10, >=15)
+library(ggplot2)
+library(dplyr)
+ggplot(data, aes(x = NumberBLL_5)) +
+  geom_histogram(binwidth = 5, fill = "steelblue", color = "black", alpha = 0.7) +
+  labs(title = "Distribution of BLL >= 5 Cases", 
+       x = "Number of BLL >= 5 Cases", y = "Frequency") +
+  theme_minimal()
+
+ggplot(data, aes(x = NumberBLL_10)) +
+  geom_histogram(binwidth = 5, fill = "tomato", color = "black", alpha = 0.7) +
+  labs(title = "Distribution of BLL >= 10 Cases", 
+       x = "Number of BLL >= 10 Cases", y = "Frequency") +
+  theme_minimal()
+
+ggplot(data, aes(x = NumberBLL_15)) +
+  geom_histogram(binwidth = 5, fill = "green", color = "black", alpha = 0.7) +
+  labs(title = "Distribution of BLL >= 15 Cases", 
+       x = "Number of BLL >= 15 Cases", y = "Frequency") +
+  theme_minimal()
+ggplot(data, aes(x = "", y = NumberBLL_5)) +
+  geom_boxplot(fill = "steelblue", color = "black") +
+  labs(title = "Boxplot of BLL >= 5 Cases", y = "Number of BLL >= 5 Cases") +
+  theme_minimal()
+
+ggplot(data, aes(x = "", y = NumberBLL_10)) +
+  geom_boxplot(fill = "tomato", color = "black") +
+  labs(title = "Boxplot of BLL >= 10 Cases", y = "Number of BLL >= 10 Cases") +
+  theme_minimal()
+
+ggplot(data, aes(x = "", y = NumberBLL_15)) +
+  geom_boxplot(fill = "green", color = "black") +
+  labs(title = "Boxplot of BLL >= 15 Cases", y = "Number of BLL >= 15 Cases") +
+  theme_minimal()
+data %>%
+  select(NumberBLL_5, NumberBLL_10, NumberBLL_15) %>%
+  summarise(
+    mean_BLL_5 = mean(NumberBLL_5, na.rm = TRUE),
+    sd_BLL_5 = sd(NumberBLL_5, na.rm = TRUE),
+    min_BLL_5 = min(NumberBLL_5, na.rm = TRUE),
+    max_BLL_5 = max(NumberBLL_5, na.rm = TRUE),
+    mean_BLL_10 = mean(NumberBLL_10, na.rm = TRUE),
+    sd_BLL_10 = sd(NumberBLL_10, na.rm = TRUE),
+    min_BLL_10 = min(NumberBLL_10, na.rm = TRUE),
+    max_BLL_10 = max(NumberBLL_10, na.rm = TRUE),
+    mean_BLL_15 = mean(NumberBLL_15, na.rm = TRUE),
+    sd_BLL_15 = sd(NumberBLL_15, na.rm = TRUE),
+    min_BLL_15 = min(NumberBLL_15, na.rm = TRUE),
+    max_BLL_15 = max(NumberBLL_15, na.rm = TRUE)
+  )
+
+```
+
+## Conclusion:
+Distribution: BLL >= 5, >= 10, and >= 15 cases show right-skewed distributions, 
+with most regions reporting low cases but some extreme high values (outliers). 
+Higher BLL thresholds (>=15) have significantly fewer cases.
+
+Statistics: Mean Cases: BLL >= 5 has the highest average (1016.97), while 
+BLL >= 15 averages much lower.
+Variation: BLL >= 5 shows the largest variability, influenced by outliers, 
+with a max of 37,344 cases.
+Outliers: High-case regions may be linked to socioeconomic or environmental 
+factors like old housing or industrial pollution.
+Low BLL issues are widespread, but high BLL exposures are rare and concentrated, 
+requiring focused interventions and monitoring
+
+```{r}
+# Distribution of lead poisoning rates by region
+ggplot(data, aes(x = geo_area_name, y = RateBLL_5)) +
+  geom_boxplot(fill = "steelblue", alpha = 0.7) +
+  coord_flip() +
+  labs(
+    title = "Distribution of BLL >=5 Rate by Region",
+    x = "Region",
+    y = "BLL >=5 Rate (per 1,000 tested)"
+  ) +
+  theme_minimal()
+
+```
+## Conclusion:
+The distribution of BLL >= 5 lead poisoning rates varies significantly by 
+region.
+Some areas (e.g., Bronx and specific neighborhoods) reported higher medians and 
+ranges of distribution.
+There are some extremes in the data, suggesting that children in some 
+neighborhoods are at significantly higher risk for lead exposure.
+
+```{r}
+# Interregional comparisons in time trends
+lead_summary <- data %>%
+  group_by(time_period, geo_area_name) %>%
+  summarize(avg_BLL_5_rate = mean(RateBLL_5, na.rm = TRUE))
+
+ggplot(lead_summary, aes(x = time_period, 
+                         y = avg_BLL_5_rate, color = geo_area_name)) +
+  geom_line(size = 1) +
+  labs(
+    title = "Comparison of BLL >=5 Rate Over Time by Region",
+    x = "Year",
+    y = "Average BLL >=5 Rate",
+    color = "Region"
+  ) +
+  theme_minimal()
+
+```
+## Key Findings
+
+The analysis produced several notable findings:
+
+  * Childhood lead exposure is not evenly distributed across New York City and 
+  remains concentrated in specific neighborhoods.
+
+  *Geographic disparities persist across multiple years, particularly within 
+  portions of the Bronx and Brooklyn.
+
+  *Demographic differences in elevated blood lead levels suggest that 
+  environmental health risks disproportionately affect certain populations.
+
+  * Exploratory statistical analyses identified measurable associations 
+  between childhood lead exposure and selected public health indicators, 
+  although these relationships should not be interpreted as causal.
+
+  *Geographic visualization provided an effective method for identifying 
+  communities that may benefit from targeted environmental health interventions.
+  
+  
+## Conclusion:
+Trends in BLL >= 5 lead poisoning rates over time varied by region.
+Some regions (e.g., Bronx or Brooklyn) reported consistently high rates of lead 
+poisoning.
+Other regions showed significant decreases in lead poisoning rates over time, 
+suggesting the effectiveness of possible interventions.
+
+## Conclusion:
+In general, under the influence of policies, the blood lead level of children 
+in New York City as a whole is declining year by year, but perhaps because of 
+the old houses in some areas, the differences between regions still exist, and 
+it is necessary to continue to test the Bronx and Brooklyn. In addition, the 
+preliminary analysis also shows a potential link between lead exposure and 
+increased mortality from cardiovascular and respiratory diseases. These links 
+deserve further study, and in the future, perhaps a more appropriate statistical 
+model can be selected to determine the causal relationship.
+
+
+## Future Work
+
+Future analyses could incorporate additional datasets, including housing age, income, education, environmental inspection records, and census data to better explain geographic disparities in childhood lead exposure. Predictive modeling techniques and spatial statistical methods could also be applied to identify neighborhoods at increased risk and support targeted public health interventions.
